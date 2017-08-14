@@ -1,0 +1,78 @@
+mount {
+    cpuset  = /cgroup/cpuset;
+    cpu     = /cgroup/cpu;
+    memory  = /cgroup/memory;
+}
+group / {
+    cpuset {
+        notify_on_release = 0;
+    }
+    cpu {
+        notify_on_release = 1;
+        release_agent = /usr/local/sbin/cpu_release.sh;
+    }
+    memory {
+        notify_on_release = 1;
+        release_agent = /usr/local/sbin/mem_release.sh;
+    }
+}
+
+group group_a {
+        perm {
+                task {
+                        uid = uid_execer;  #设置在子系统路径下group_a控制组的task进程使用下文配置
+                        gid = uid_execer;
+                }
+                admin {
+                        uid = root;
+                        gid = root;
+                }
+        }
+    cpuset {
+        notify_on_release = 0;
+        cpuset.mems = 0-1;  #设置cpu内存节点，必选项，不填写cpuset不会生效
+        cpuset.cpus = 0-9;  #设置该控制组使用编号为x-x的cpu核
+    }
+    cpu {
+        cpu.cfs_quota_us = 50000;  #设置前十个核运行时间的50%可被该控制组使用
+        cpu.cfs_period_us = 100000;  #设置每个period为百毫秒，一般在cpuset子系统使用时，cpu.cfs_period_us和cpu.cfs_quota_us是选填项，加上则粒度太小。当然如果资源实在有限，这句话就当做没看到~
+        notify_on_release = 0;  #在退出时，选择不启用release_agent
+    }
+    memory {
+        ## memory.limit_in_bytes和memory.swappiness设置是为了限制内存使用，内存资源相对于cpu并不是很珍贵，这两个参数可以按照需求自己设置
+        memory.limit_in_bytes=104857600;  #限制了可以使用的内存最大为256M
+        memory.swappiness=0;  #设置为0，为了让操作系统不会将该控制组的服务的内存匿名也交换出去
+        notify_on_release = 0;
+    }
+    ## 因为是模板，故这里讲子系统的限制写的全一点，加上io限制。一般可不加，因为一般不会再一个物理机上布置多个io密集型服务
+    blkio  {  
+           blkio.throttle.read_bps_device="8:0 524288";  ##每秒读数据上限 
+           blkio.throttle.write_bps_device="8:0 524288";  ##每秒写数据上限
+    }
+    ## 其中8:0对应主设备号和副设备号，可以通过ls -l /dev/sda查看
+    ## 返回结果样例：brw-rw----. 1 root disk 8, 0 Sep 15 04:19 /dev/sda  
+}
+group gourp_b {
+        perm {
+                task {
+                        uid = uid_execer;
+                        gid = uid_execer;
+                }
+                admin {
+                        uid = root;
+                        gid = root;
+                }
+        }
+    cpuset {
+        notify_on_release = 0;
+        cpuset.mems =0-1;
+        cpuset.cpus = 10-31;
+    }
+    cpu {
+        notify_on_release = 0;
+    }
+    memory {
+        notify_on_release = 0;
+    }
+}
+
